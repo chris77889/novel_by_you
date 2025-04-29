@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { HistoryItem, StoryChoice } from '../types';
+import { HistoryItem, StoryChoice, ThinkingHistoryItem } from '../types';
 import LoadingIndicator from './LoadingIndicator';
 import ChoiceList from './ChoiceList';
 import BackToTop from './BackToTop';
@@ -13,9 +13,19 @@ interface NovelReadingScreenProps {
   setCurrentChoices: React.Dispatch<React.SetStateAction<StoryChoice[]>>;
   history: HistoryItem[];
   setHistory: React.Dispatch<React.SetStateAction<HistoryItem[]>>;
+  structureOutline: string | null;
   isLoading: boolean;
   setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
-  onUpdate: (content: string, choices: StoryChoice[], history: HistoryItem[]) => void;
+  onUpdate: (
+    content: string, 
+    choices: StoryChoice[], 
+    history: HistoryItem[], 
+    newStructureOutline?: string,
+    structureThinkingHistory?: ThinkingHistoryItem[],
+    preferenceThinkingHistory?: ThinkingHistoryItem[]
+  ) => void;
+  structureThinkingHistory?: ThinkingHistoryItem[];
+  preferenceThinkingHistory?: ThinkingHistoryItem[];
 }
 
 const NovelReadingScreen: React.FC<NovelReadingScreenProps> = ({
@@ -25,9 +35,12 @@ const NovelReadingScreen: React.FC<NovelReadingScreenProps> = ({
   setCurrentChoices,
   history,
   setHistory,
+  structureOutline,
   isLoading,
   setIsLoading,
-  onUpdate
+  onUpdate,
+  structureThinkingHistory = [],
+  preferenceThinkingHistory = []
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const choicesRef = useRef<HTMLDivElement>(null);
@@ -54,7 +67,7 @@ const NovelReadingScreen: React.FC<NovelReadingScreenProps> = ({
     setError(null);
     
     const userChoice = `> 你选择了：${choice.text}`;
-    const updatedHistory = [
+    const updatedHistory: HistoryItem[] = [
       ...history,
       { role: 'user', content: userChoice }
     ];
@@ -64,19 +77,61 @@ const NovelReadingScreen: React.FC<NovelReadingScreenProps> = ({
     setStoryContent(updatedContent);
     
     try {
-      const { storyContinuation, choices } = await continueStoryAndGenerateChoices(
+      // 计算用户选择次数
+      const choiceCount = history.filter(item => item.role === 'user').length;
+      
+      const response = await continueStoryAndGenerateChoices(
         updatedHistory,
-        'creative'
+        'creative',
+        structureOutline,
+        choiceCount,
+        structureThinkingHistory,
+        preferenceThinkingHistory
       );
       
+      const { storyContinuation, choices, structureThinking, preferenceThinking } = response;
+      
       const finalContent = updatedContent + storyContinuation;
-      const finalHistory = [...updatedHistory, { role: 'assistant', content: storyContinuation }];
+      const finalHistory: HistoryItem[] = [...updatedHistory, { role: 'assistant', content: storyContinuation }];
       
       setStoryContent(finalContent);
       setHistory(finalHistory);
       setCurrentChoices(choices);
       
-      onUpdate(finalContent, choices, finalHistory);
+      // 更新思考历史
+      const updatedStructureThinkingHistory = [...structureThinkingHistory];
+      const updatedPreferenceThinkingHistory = [...preferenceThinkingHistory];
+      
+      // 如果有结构思考，添加到历史
+      if (structureThinking) {
+        updatedStructureThinkingHistory.push({
+          position: choiceCount,
+          content: structureThinking
+        });
+      }
+      
+      // 如果有用户偏好分析，添加到历史
+      if (preferenceThinking) {
+        updatedPreferenceThinkingHistory.push({
+          position: choiceCount,
+          content: preferenceThinking
+        });
+      }
+      
+      // 将更新后的内容、选项和思考历史传递回 App 组件
+      onUpdate(
+        finalContent, 
+        choices, 
+        finalHistory, 
+        structureThinking && structureOutline ? structureOutline : undefined, 
+        updatedStructureThinkingHistory,
+        updatedPreferenceThinkingHistory
+      );
+      
+      // 如果返回了用户偏好分析，可以在控制台记录用于调试
+      if (preferenceThinking) {
+        console.log('用户偏好分析:', preferenceThinking);
+      }
     } catch (err) {
       const errorMessage = handleAiError(err as Error);
       setError(errorMessage);

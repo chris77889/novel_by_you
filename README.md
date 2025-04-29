@@ -1,6 +1,65 @@
-# 执笔马良 - AI Interactive Novel Generator
+# 执笔马良 - AI 交互式小说生成器
 
-一个基于 AI 的交互式小说生成器，让用户可以通过选择不同的剧情分支来影响故事的发展方向。
+一个基于 AI 的交互式小说生成器，允许用户选择不同的风格，然后通过选择剧情分支来决定故事的走向。
+
+## 项目特点
+
+- 多种小说风格：武侠江湖、科幻探索、奇幻魔法、悬疑推理等
+- 丰富的交互选择：用户可以在故事中作出选择，影响故事发展方向
+- 流畅的用户体验：美观的界面，无缝的故事过渡
+- 历史记录：保存用户的阅读历史，可以随时回顾或继续
+
+## 新增功能
+
+### 1. 基于关键词的 AI 响应解析
+
+- 修改了 AI 交互逻辑，不再依赖严格的 JSON 格式
+- 使用关键词（`novelstory:`, `options:`, `structure_thinking:`, `preference_thinking:`）和特定分隔符(`.`)从 AI 响应中提取内容
+- 实现了健壮的解析逻辑，可以处理各种可能的 AI 输出格式
+
+### 2. 小说结构思考
+
+- 用户选择风格后，系统会生成一个初始的小说结构大纲
+- 当用户选择次数达到阈值（默认为 5 次）后，AI 会分析当前剧情并对后续结构进行调整
+- 结构大纲被存储在数据库中，并在每次故事继续时提供给 AI 参考
+
+### 3. 用户偏好分析
+
+- 系统会记录用户的所有选择，并在达到阈值后分析用户的偏好
+- AI 可以根据分析结果调整后续剧情和选项，使故事更符合用户喜好
+- 偏好分析结果目前会记录在控制台中（仅用于调试）
+
+## 技术栈
+
+- 前端：React, TailwindCSS, Zustand
+- 后端：Supabase (数据库、认证)
+- AI：Gemini API
+
+## 配置说明
+
+项目中添加了新的环境变量：
+```
+VITE_STRUCTURE_THINKING_THRESHOLD=5
+```
+此变量控制触发结构思考和偏好分析的用户选择次数阈值。
+
+## 数据库更新
+
+项目中添加了新的数据库表字段，需要在 Supabase 中执行以下 SQL：
+
+```sql
+ALTER TABLE reading_histories
+ADD COLUMN structure_outline TEXT DEFAULT NULL;
+```
+
+详见 `supabase_update.sql` 文件。
+
+## 安装与运行
+
+1. 克隆项目
+2. 安装依赖：`npm install`
+3. 配置环境变量：复制 `.env.example` 为 `.env.local` 并填写相关信息
+4. 运行开发服务器：`npm run dev`
 
 ## 功能特点
 
@@ -21,34 +80,6 @@
 - **UI 组件**: Radix UI
 - **图标**: Lucide React
 - **类型检查**: TypeScript
-
-## 开发环境设置
-
-1. 克隆项目并安装依赖：
-
-```bash
-git clone <repository-url>
-cd novel-generator
-npm install
-```
-
-2. 配置环境变量：
-
-创建 `.env` 文件并添加以下配置：
-
-```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_AI_API_KEY=your_ai_api_key
-VITE_AI_CREATIVE_MODEL_NAME=your_model_name
-VITE_AI_CREATIVE_MODEL_ENDPOINT=your_model_endpoint
-```
-
-3. 启动开发服务器：
-
-```bash
-npm run dev
-```
 
 ## 项目结构
 

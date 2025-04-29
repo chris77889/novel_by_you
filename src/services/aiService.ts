@@ -1,4 +1,4 @@
-import { HistoryItem, StoryChoice } from '../types';
+import { HistoryItem, StoryChoice, EnhancedContinuationResponse, ThinkingHistoryItem } from '../types';
 
 // Model configurations
 interface ModelConfig {
@@ -86,11 +86,6 @@ interface StoryResponse {
   choices: StoryChoice[];
 }
 
-interface ContinuationResponse {
-  storyContinuation: string;
-  choices: StoryChoice[];
-}
-
 const safeJsonParse = (text: string) => {
   try {
     return JSON.parse(text);
@@ -98,6 +93,95 @@ const safeJsonParse = (text: string) => {
     console.error('JSON Parse Error:', error);
     console.error('Raw Response:', text);
     throw new Error(`Invalid JSON response from AI service: ${(error as Error).message}`);
+  }
+};
+
+// 新增：生成初始结构大纲
+export const generateInitialStructure = async (
+  stylePrompt: string,
+  modelType: keyof typeof models = 'balanced'
+): Promise<string> => {
+  try {
+    const modelConfig = models[modelType] || defaultModel;
+    const basePrompt = `
+**！！！绝对强制输出格式！！！**
+你的唯一输出**必须**是单个、完整且语法绝对正确的 JSON 对象。**禁止**在 JSON 对象之外添加任何字符、解释、注释、代码标记（如 \`\`\`json）或任何形式的元评论。任何偏离此格式的输出都将被视为完全失败。
+
+**JSON 结构（必须严格遵守）**：
+{
+  "outline": "大纲内容。段落之间必须使用且仅使用 \\n\\n 分隔。"
+}
+
+**JSON 格式细节（强制）**：
+1.  **引号**：所有 JSON 键和字符串值**必须**使用双引号 (").
+2.  **转义**：字符串值内部的所有特殊字符（如 "、换行符等）**必须**正确转义（例如：\\", \\n）。
+3.  **完整性**：确保 JSON 对象完整，无截断、无语法错误（如多余逗号）。
+4.   **无额外包装（关键点）**：最终的输出必须是纯粹的、原始的 JSON 字符串本身，绝对不能包含 Markdown 的代码块标记或其他任何解释性文本。响应应直接以 { 开始，并以 } 结束。
+
+**任务**: 根据以下风格提示，生成一个简洁的小说初始结构大纲。
+**风格提示**: ${stylePrompt}
+**要求**: 
+1. 大纲应包含主要章节、关键转折点或大致的结局方向。
+2. 输出**必须**是纯文本格式的大纲内容，**不要包含任何** 嵌套JSON、Markdown 标记或其他元注释。
+3. 大纲内容应控制在 200-300 字左右。
+4. 将你创作的大纲填充到上述 JSON 结构的 "outline" 字段中。
+
+**输出示例内容（仅供参考，你需要创建原创内容并放入JSON结构中）**: 
+第一章：主角的平凡生活与隐藏的危机。
+第二章：危机爆发，主角被迫踏上旅程。
+第三章：遭遇关键盟友或导师，获得初步成长。
+第四章：面临重大挑战与第一个转折点。
+第五章：深入险境，揭露部分真相。
+第六章：最终决战与结局（开放式/封闭式）。
+`;
+
+    return await retryWithBackoff(async () => {
+      const response = await fetch(modelConfig.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({
+          model: modelConfig.name,
+          messages: [
+            { 
+              role: 'system', 
+              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。'
+            },
+            { role: 'user', content: basePrompt }
+          ],
+          temperature: modelConfig.temperature, 
+          max_tokens: 500,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Raw AI Response Data (Initial Structure):', data);
+      
+      if (!data.choices?.[0]?.message?.content) {
+        console.error('Raw AI Response Data (Initial Structure) missing content:', data);
+        throw new Error('AI response structure unexpected or content missing');
+      }
+      
+      console.log('AI Output Content (Initial Structure):', data.choices[0].message.content);
+      
+      const result = safeJsonParse(data.choices[0].message.content);
+      
+      if (!result.outline) {
+        throw new Error('AI response missing outline field');
+      }
+      
+      return result.outline.trim();
+    });
+  } catch (error) {
+    console.error('Error generating initial structure:', error);
+    throw error;
   }
 };
 
@@ -112,11 +196,11 @@ const retryWithBackoff = async <T>(
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await operation();
-    } catch (error) {
+    } catch (error: unknown) {
       lastError = error as Error;
       
       // Only retry on 503 errors
-      if (!error.toString().includes('API error: 503')) {
+      if (!error?.toString().includes('API error: 503')) {
         throw error;
       }
       
@@ -140,7 +224,7 @@ export const generateInitialStoryAndChoices = async (
     const modelConfig = models[modelType] || defaultModel;
     const basePrompt = `
     **内容生成任务**：
-    根据以下「风格提示」和「内容与风格要求」，生成故事开篇和选项，并填充到 JSON 结构的对应字段中, 请注意生成的内容不准有"\'\'\'json"这种表示markdown的格式表示, 直接返回对象即可。
+    根据以下「风格提示」和「内容与风格要求」，生成故事开篇和选项，并填充到 JSON 结构的对应字段中, 请注意生成的内容不要有\`\`\`json这种表示markdown的格式表示, 直接返回对象即可。
     
     **风格提示**：${stylePrompt}
     
@@ -208,10 +292,12 @@ export const generateInitialStoryAndChoices = async (
       }
 
       const data = await response.json();
+      console.log('Raw AI Response Data (Initial Story):', data);
       if (!data.choices?.[0]?.message?.content) {
-        console.error('Raw AI Response Data:', data);
+        console.error('Raw AI Response Data (Initial Story) missing content:', data);
         throw new Error('AI response structure unexpected or content missing');
       }
+      console.log('AI Output Content (Initial Story):', data.choices[0].message.content);
 
       const result = safeJsonParse(data.choices[0].message.content) as StoryResponse;
       
@@ -229,15 +315,38 @@ export const generateInitialStoryAndChoices = async (
 
 export const continueStoryAndGenerateChoices = async (
   history: HistoryItem[],
-  modelType: keyof typeof models = 'creative'
-): Promise<ContinuationResponse> => {
+  modelType: keyof typeof models = 'creative',
+  currentStructureOutline: string | null = null,
+  choiceCount: number = 0,
+  structureThinkingHistory: ThinkingHistoryItem[] = [],
+  preferenceThinkingHistory: ThinkingHistoryItem[] = []
+): Promise<EnhancedContinuationResponse> => {
   try {
     const modelConfig = models[modelType] || defaultModel;
-    const basePrompt = `
+    const thresholdN = 5; // 固定每5次选择进行一次思考
+    const needStructureThinking = choiceCount > 0 && choiceCount % thresholdN === 0;
+    
+    let basePrompt = `
 **！！！绝对强制输出格式！！！**
 你的唯一输出**必须**是单个、完整且语法绝对正确的 JSON 对象。**禁止**在 JSON 对象之外添加任何字符、解释、注释、代码标记（如 \`\`\`json）或任何形式的元评论。任何偏离此格式的输出都将被视为完全失败。
 
-**JSON 结构（必须严格遵守）**：
+**JSON 结构（必须严格遵守）**：`;
+
+    // 根据是否需要结构思考确定JSON结构
+    if (needStructureThinking) {
+      basePrompt += `
+{
+  "storyContinuation": "续写的故事内容。段落之间必须使用且仅使用 \\n\\n 分隔。",
+  "choices": [
+    { "id": "choice1", "text": "第一个选项描述" },
+    { "id": "choice2", "text": "第二个选项描述" },
+    { "id": "choice3", "text": "第三个选项描述" }
+  ],
+  "structureThinking": "对后续小说结构的思考和规划，包括如何根据用户的选择调整当前故事结构",
+  "preferenceThinking": "对用户偏好的分析和推断，根据历史选择推测用户喜好并规划如何利用这些偏好来设计后续情节或选项"
+}`;
+    } else {
+      basePrompt += `
 {
   "storyContinuation": "续写的故事内容。段落之间必须使用且仅使用 \\n\\n 分隔。",
   "choices": [
@@ -245,7 +354,10 @@ export const continueStoryAndGenerateChoices = async (
     { "id": "choice2", "text": "第二个选项描述" },
     { "id": "choice3", "text": "第三个选项描述" }
   ]
-}
+}`;
+    }
+
+    basePrompt += `
 
 **JSON 格式细节（强制）**：
 1.  **引号**：所有 JSON 键和字符串值**必须**使用双引号 (").
@@ -255,7 +367,31 @@ export const continueStoryAndGenerateChoices = async (
 
 **内容生成任务**：
 根据用户提供的对话历史（包含之前的故事片段和用户的最新选择）和以下「故事续写要求」，创作故事续写和选项，并填充到上述 JSON 结构的对应字段中。
+`;
 
+    // 如果有结构大纲，添加到 prompt 中
+    if (currentStructureOutline) {
+      basePrompt += `\n**当前故事结构大纲 (${needStructureThinking ? '供参考与更新' : '供参考'})**:
+${currentStructureOutline}\n\n`;
+    }
+
+    // 如果有结构思考历史，添加到 prompt 中
+    if (structureThinkingHistory && structureThinkingHistory.length > 0) {
+      basePrompt += `\n**历史结构思考 (仅供参考)**:\n`;
+      structureThinkingHistory.forEach(item => {
+        basePrompt += `[选择${item.position}次后] ${item.content}\n\n`;
+      });
+    }
+
+    // 如果有用户偏好分析历史，添加到 prompt 中
+    if (preferenceThinkingHistory && preferenceThinkingHistory.length > 0) {
+      basePrompt += `\n**历史用户偏好分析 (仅供参考)**:\n`;
+      preferenceThinkingHistory.forEach(item => {
+        basePrompt += `[选择${item.position}次后] ${item.content}\n\n`;
+      });
+    }
+
+    basePrompt += `
 **故事续写要求**：
 1.  **高度连贯性**：续写内容**必须**紧密衔接之前的故事情节和用户做出的最新选择。保持人物性格、动机、故事背景和整体基调的一致性。**允许在叙事需要时进行合理的场景切换或时间跳跃，但必须过渡自然，服务于故事整体逻辑，** 绝不允许出现逻辑断裂或与前文矛盾之处。
 2.  **服务故事主线**：续写部分**必须**有效地推动核心情节发展，或深化人物形象，或揭示重要信息。避免无关的旁枝末节或仅仅为了填充字数的无效描写（牢记"故事优先"原则）。
@@ -271,6 +407,15 @@ export const continueStoryAndGenerateChoices = async (
     *   选项描述需简洁、清晰，能准确预示选择后的故事走向。
 5.  **字数控制**：续写的故事内容长度严格控制在 300 至 500 字之间。
 `;
+
+    // 如果是第5、10、15...次选择，添加额外思考要求
+    if (needStructureThinking) {
+      basePrompt += `
+**额外思考要求（因为这是第${choiceCount}次选择）**：
+1. **结构思考**：分析故事当前的发展状态，对后续结构进行深入思考。考虑当前情节如何发展，需要注意哪些主题和矛盾，如何推动故事向高潮迈进。
+2. **用户偏好分析**：基于用户之前的${choiceCount}次选择，推断用户的偏好和兴趣点。考虑用户是更偏向冒险、对话、情感描写还是其他方面，并思考如何在后续选项和内容中融入这些偏好。
+`;
+    }
     
     const systemPrompt = generateThinkingSteps(basePrompt, modelConfig.thinking);
     
@@ -286,7 +431,7 @@ export const continueStoryAndGenerateChoices = async (
           messages: [
             { 
               role: 'system', 
-              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。请注意生成的内容不准有"\'\'\'json"这种表示markdown的格式表示, 直接返回对象即可.'
+              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。请注意生成的内容不要有```json这种表示markdown的格式表示, 直接返回对象即可.'
             },
             ...history,
             { role: 'user', content: systemPrompt }
@@ -305,18 +450,25 @@ export const continueStoryAndGenerateChoices = async (
       }
 
       const data = await response.json();
+      console.log('Raw AI Response Data (Continuation):', data);
       if (!data.choices?.[0]?.message?.content) {
-        console.error('Raw AI Response Data (Continuation):', data);
+        console.error('Raw AI Response Data (Continuation) missing content:', data);
         throw new Error('AI response structure unexpected or content missing');
       }
+      console.log('AI Output Content (Continuation):', data.choices[0].message.content);
 
-      const result = safeJsonParse(data.choices[0].message.content) as ContinuationResponse;
+      const result = safeJsonParse(data.choices[0].message.content);
       
       if (!result.storyContinuation || !Array.isArray(result.choices) || result.choices.length !== 3) {
         throw new Error('AI response missing required fields or has incorrect format');
       }
 
-      return result;
+      return {
+        storyContinuation: result.storyContinuation,
+        choices: result.choices,
+        structureThinking: result.structureThinking,
+        preferenceThinking: result.preferenceThinking
+      };
     });
   } catch (error) {
     console.error('Error continuing story:', error);
@@ -335,6 +487,8 @@ export const handleAiError = (error: Error, defaultMessage: string = 'AI服务�
     return 'AI服务器暂时不可用，请稍后再试';
   } else if (error.message.includes('Invalid JSON response')) {
     return 'AI返回的格式有误，请重试';
+  } else if (error.message.includes('解析错误:')) {
+    return `${error.message}，请重试`;
   } else if (error.message.includes('API error: 403')) {
     return 'AI服务授权失败，请检查API密钥是否正确';
   } else if (error.message.includes('missing required fields')) {

@@ -1,23 +1,32 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { NovelStyle, HistoryItem } from '../types';
+import { NovelHistory } from '../types';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './authStore';
 
-interface NovelHistory {
-  id: string;
-  style: NovelStyle;
-  lastUpdated: number;
-  content: string;
-  choices: Array<{id: string, text: string}>;
-  history: HistoryItem[];
-}
-
-interface PendingWrite {
-  type: 'add' | 'update' | 'delete';
-  data: any;
+// 类型定义
+type PendingAddData = {
+  type: 'add';
+  data: NovelHistory;
   timestamp: number;
-}
+};
+
+type PendingUpdateData = {
+  type: 'update';
+  data: {
+    id: string;
+    updates: Partial<NovelHistory>;
+  };
+  timestamp: number;
+};
+
+type PendingDeleteData = {
+  type: 'delete';
+  data: null;
+  timestamp: number;
+};
+
+type PendingWrite = PendingAddData | PendingUpdateData | PendingDeleteData;
 
 interface NovelStore {
   histories: NovelHistory[];
@@ -50,7 +59,8 @@ const processPendingWrites = async (
               style_name: write.data.style.name,
               content: write.data.content,
               choices: write.data.choices,
-              history: write.data.history
+              history: write.data.history,
+              structure_outline: write.data.structureOutline || null
             });
           break;
         case 'update':
@@ -60,6 +70,7 @@ const processPendingWrites = async (
               content: write.data.updates.content,
               choices: write.data.updates.choices,
               history: write.data.updates.history,
+              structure_outline: write.data.updates.structureOutline,
               updated_at: new Date().toISOString()
             })
             .eq('id', write.data.id)
@@ -182,7 +193,8 @@ export const useNovelStore = create<NovelStore>()(
             lastUpdated: new Date(item.updated_at).getTime(),
             content: item.content,
             choices: item.choices,
-            history: item.history
+            history: item.history,
+            structureOutline: item.structure_outline
           }));
           
           set({ histories, pendingWrites: [] });

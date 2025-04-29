@@ -3,9 +3,9 @@ import StyleSelectionScreen from './components/StyleSelectionScreen';
 import NovelReadingScreen from './components/NovelReadingScreen';
 import Navigation from './components/Navigation';
 import AuthModal from './components/AuthModal';
-import { NovelStyle } from './types';
+import { NovelStyle, ThinkingHistoryItem } from './types';
 import { novelStyles } from './data/novelStyles';
-import { generateInitialStoryAndChoices, handleAiError } from './services/aiService';
+import { generateInitialStoryAndChoices, generateInitialStructure, handleAiError } from './services/aiService';
 import { useNovelStore } from './store/novelStore';
 import { useThemeStore } from './components/ThemeSwitcher';
 import { useAuthStore } from './store/authStore';
@@ -17,6 +17,9 @@ function App() {
   const [storyContent, setStoryContent] = useState<string>('');
   const [currentChoices, setCurrentChoices] = useState<Array<{id: string, text: string}>>([]);
   const [history, setHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [structureOutline, setStructureOutline] = useState<string | null>(null);
+  const [structureThinkingHistory, setStructureThinkingHistory] = useState<ThinkingHistoryItem[]>([]);
+  const [preferenceThinkingHistory, setPreferenceThinkingHistory] = useState<ThinkingHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
@@ -80,13 +83,23 @@ function App() {
         'creative'
       );
       
+      const initialOutline = await generateInitialStructure(style.prompt, 'balanced');
+      setStructureOutline(initialOutline);
+      
+      // 重置思考历史
+      setStructureThinkingHistory([]);
+      setPreferenceThinkingHistory([]);
+      
       const newHistory = {
         id: crypto.randomUUID(),
         style,
         lastUpdated: Date.now(),
         content: story,
         choices,
-        history: [{ role: 'assistant' as const, content: story }]
+        history: [{ role: 'assistant' as const, content: story }],
+        structureOutline: initialOutline,
+        structureThinkingHistory: [],
+        preferenceThinkingHistory: []
       };
       
       await addHistory(newHistory);
@@ -110,6 +123,12 @@ function App() {
       setStoryContent(selectedHistory.content);
       setCurrentChoices(selectedHistory.choices);
       setHistory(selectedHistory.history);
+      setStructureOutline(selectedHistory.structureOutline || null);
+      
+      // 恢复思考历史
+      setStructureThinkingHistory(selectedHistory.structureThinkingHistory || []);
+      setPreferenceThinkingHistory(selectedHistory.preferenceThinkingHistory || []);
+      
       setCurrentScreen('novel');
     }
   };
@@ -117,13 +136,32 @@ function App() {
   const handleStoryUpdate = async (
     content: string,
     choices: Array<{id: string, text: string}>,
-    historyItems: Array<{role: 'user' | 'assistant', content: string}>
+    historyItems: Array<{role: 'user' | 'assistant', content: string}>,
+    newStructureOutline?: string,
+    updatedStructureThinkingHistory?: ThinkingHistoryItem[],
+    updatedPreferenceThinkingHistory?: ThinkingHistoryItem[]
   ) => {
     if (selectedStyle && histories.length > 0) {
+      if (newStructureOutline) {
+        setStructureOutline(newStructureOutline);
+      }
+      
+      // 更新思考历史状态
+      if (updatedStructureThinkingHistory) {
+        setStructureThinkingHistory(updatedStructureThinkingHistory);
+      }
+      
+      if (updatedPreferenceThinkingHistory) {
+        setPreferenceThinkingHistory(updatedPreferenceThinkingHistory);
+      }
+      
       await updateHistory(histories[0].id, {
         content,
         choices,
-        history: historyItems
+        history: historyItems,
+        structureOutline: newStructureOutline || structureOutline,
+        structureThinkingHistory: updatedStructureThinkingHistory || structureThinkingHistory,
+        preferenceThinkingHistory: updatedPreferenceThinkingHistory || preferenceThinkingHistory
       });
     }
   };
@@ -146,9 +184,12 @@ function App() {
             setCurrentChoices={setCurrentChoices}
             history={history}
             setHistory={setHistory}
+            structureOutline={structureOutline}
             isLoading={isLoading}
             setIsLoading={setIsLoading}
             onUpdate={handleStoryUpdate}
+            structureThinkingHistory={structureThinkingHistory}
+            preferenceThinkingHistory={preferenceThinkingHistory}
           />
           <Navigation 
             onHome={() => setCurrentScreen('style')}
