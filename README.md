@@ -18,7 +18,7 @@
 - **样式方案**: Tailwind CSS
 - **状态管理**: Zustand
 - **数据库**: Supabase
-- **UI组件**: Radix UI
+- **UI 组件**: Radix UI
 - **图标**: Lucide React
 - **类型检查**: TypeScript
 
@@ -66,12 +66,14 @@ src/
 ## 数据库结构
 
 ### Profiles 表
+
 - `id`: UUID (Primary Key)
 - `username`: Text
 - `created_at`: Timestamp
 - `updated_at`: Timestamp
 
 ### Reading Histories 表
+
 - `id`: UUID (Primary Key)
 - `user_id`: UUID (Foreign Key -> profiles.id)
 - `style_id`: Text

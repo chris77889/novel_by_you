@@ -7,7 +7,8 @@ interface LoadingIndicatorProps {
 const PixelDino = () => {
   return (
     <div className="pixel-dino-container mb-4">
-      <style jsx>{`
+      <style>
+        {`
         .pixel-dino-container {
           height: 60px;
           position: relative;
@@ -72,7 +73,8 @@ const PixelDino = () => {
           right: -30px;
           border-radius: 50%;
         }
-      `}</style>
+        `}
+      </style>
       <div className="flex justify-center">
         <div className="pixel-dino">
           <div className="pixel-dino-mouth"></div>
@@ -99,12 +101,14 @@ const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({ text }) => {
           />
         ))}
       </div>
-      <style jsx>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(0.8); opacity: 0.5; }
-          50% { transform: scale(1.2); opacity: 1; }
-        }
-      `}</style>
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+          }
+        `}
+      </style>
     </div>
   );
 };
