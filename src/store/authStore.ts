@@ -1,60 +1,30 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { supabase } from '../lib/supabase';
+// Removed persist and supabase import
 
+// Keep Profile interface for structure, but it won't be fetched
 interface Profile {
   id: string;
   username: string;
-  created_at: string;
-  updated_at: string;
+  // Remove timestamps or keep if needed for local logic
+  // created_at: string;
+  // updated_at: string;
 }
 
+// Simplified AuthState
 interface AuthState {
-  user: Profile | null;
-  setUser: (user: Profile | null) => void;
-  signUp: (email: string, password: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  user: Profile | null; // Keep the structure, but initialize differently
+  // Remove setUser, signUp, signIn, signOut methods
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      setUser: (user) => set({ user }),
-      signUp: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        
-        if (error) throw error;
-      },
-      signIn: async (email: string, password: string) => {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        
-        if (error) throw error;
-        
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .single();
-          
-        if (profile) {
-          set({ user: profile });
-        }
-      },
-      signOut: async () => {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-        set({ user: null });
-      },
-    }),
-    {
-      name: 'auth-storage',
-    }
-  )
-);
+// Create a mock user profile
+const mockUser: Profile = {
+  id: 'local-user', // Static ID for the local session user
+  username: 'Local User',
+};
+
+// Create the store without persistence and Supabase interactions
+export const useAuthStore = create<AuthState>()(() => ({
+  // Initialize user as the mock user, effectively skipping login
+  user: mockUser,
+  // Remove setUser, signUp, signIn, signOut implementations
+}));

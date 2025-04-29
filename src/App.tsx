@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import StyleSelectionScreen from './components/StyleSelectionScreen';
 import NovelReadingScreen from './components/NovelReadingScreen';
 import Navigation from './components/Navigation';
-import AuthModal from './components/AuthModal';
+// Removed AuthModal import
 import { NovelStyle, ThinkingHistoryItem } from './types';
 import { novelStyles } from './data/novelStyles';
 import { generateInitialStoryAndChoices, generateInitialStructure, handleAiError } from './services/aiService';
 import { useNovelStore } from './store/novelStore';
 import { useThemeStore } from './components/ThemeSwitcher';
-import { useAuthStore } from './store/authStore';
-import { supabase } from './lib/supabase';
+// Removed useAuthStore import (or keep if user info is still displayed, but remove setUser)
+// Removed supabase import
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<'style' | 'novel'>('style');
@@ -22,76 +22,38 @@ function App() {
   const [preferenceThinkingHistory, setPreferenceThinkingHistory] = useState<ThinkingHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  // Removed showAuthModal state
 
-  const { histories, addHistory, updateHistory, syncWithSupabase } = useNovelStore();
-  const { user, setUser } = useAuthStore();
+  // Removed syncWithSupabase from destructuring
+  const { histories, addHistory, updateHistory } = useNovelStore();
+  // Removed user and setUser from useAuthStore
   const theme = useThemeStore((state) => state.theme);
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setUser(data);
-              syncWithSupabase();
-            }
-          });
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-          
-        if (data) {
-          setUser(data);
-          syncWithSupabase();
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [setUser, syncWithSupabase]);
+  // Removed Supabase useEffect hook (lines 31-68 from original)
 
   const handleStyleSelect = async (style: NovelStyle) => {
-    if (!user) {
-      setShowAuthModal(true);
-      return;
-    }
+    // Removed user check and setShowAuthModal call
 
     setSelectedStyle(style);
     setIsLoading(true);
     setError(null);
-    
+
     try {
+      // Generate initial story and structure (logic remains the same)
       const { story, choices } = await generateInitialStoryAndChoices(
         style.prompt,
         'creative'
       );
-      
       const initialOutline = await generateInitialStructure(style.prompt, 'balanced');
       setStructureOutline(initialOutline);
-      
-      // 重置思考历史
+
+      // Reset thinking history
       setStructureThinkingHistory([]);
       setPreferenceThinkingHistory([]);
-      
+
+      // Create new history entry (logic remains the same, uses local ID generation)
       const newHistory = {
-        id: crypto.randomUUID(),
+        id: crypto.randomUUID(), // Use local ID
         style,
         lastUpdated: Date.now(),
         content: story,
@@ -101,9 +63,10 @@ function App() {
         structureThinkingHistory: [],
         preferenceThinkingHistory: []
       };
-      
-      await addHistory(newHistory);
-      
+
+      // Add history to the local store
+      addHistory(newHistory); // No longer async or interacting with Supabase
+
       setStoryContent(story);
       setCurrentChoices(choices);
       setHistory([{ role: 'assistant', content: story }]);
@@ -124,16 +87,14 @@ function App() {
       setCurrentChoices(selectedHistory.choices);
       setHistory(selectedHistory.history);
       setStructureOutline(selectedHistory.structureOutline || null);
-      
-      // 恢复思考历史
       setStructureThinkingHistory(selectedHistory.structureThinkingHistory || []);
       setPreferenceThinkingHistory(selectedHistory.preferenceThinkingHistory || []);
-      
       setCurrentScreen('novel');
     }
   };
 
-  const handleStoryUpdate = async (
+  // handleStoryUpdate remains largely the same, but updateHistory is now synchronous
+  const handleStoryUpdate = ( // Removed async keyword
     content: string,
     choices: Array<{id: string, text: string}>,
     historyItems: Array<{role: 'user' | 'assistant', content: string}>,
@@ -145,17 +106,15 @@ function App() {
       if (newStructureOutline) {
         setStructureOutline(newStructureOutline);
       }
-      
-      // 更新思考历史状态
       if (updatedStructureThinkingHistory) {
         setStructureThinkingHistory(updatedStructureThinkingHistory);
       }
-      
       if (updatedPreferenceThinkingHistory) {
         setPreferenceThinkingHistory(updatedPreferenceThinkingHistory);
       }
-      
-      await updateHistory(histories[0].id, {
+
+      // Update history in the local store
+      updateHistory(histories[0].id, { // No longer async
         content,
         choices,
         history: historyItems,
@@ -169,15 +128,16 @@ function App() {
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800'}`}>
       {currentScreen === 'style' ? (
-        <StyleSelectionScreen 
-          styles={novelStyles} 
-          onSelectStyle={handleStyleSelect} 
+        <StyleSelectionScreen
+          styles={novelStyles}
+          onSelectStyle={handleStyleSelect}
           isLoading={isLoading}
           error={error}
+          // Removed onAuthClick prop if it existed
         />
       ) : (
         <>
-          <NovelReadingScreen 
+          <NovelReadingScreen
             storyContent={storyContent}
             currentChoices={currentChoices}
             setStoryContent={setStoryContent}
@@ -191,17 +151,14 @@ function App() {
             structureThinkingHistory={structureThinkingHistory}
             preferenceThinkingHistory={preferenceThinkingHistory}
           />
-          <Navigation 
+          <Navigation
             onHome={() => setCurrentScreen('style')}
             onSelectHistory={handleSelectHistory}
+            // Removed user prop if it existed
           />
         </>
       )}
-      
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
-      />
+      {/* Removed AuthModal rendering */}
     </div>
   );
 }

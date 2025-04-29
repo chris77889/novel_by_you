@@ -1,119 +1,112 @@
-import React from 'react';
+import React from 'react'; // Keep React import
 import { NovelStyle } from '../types';
 import StyleCard from './StyleCard';
 import LoadingIndicator from './LoadingIndicator';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Clock, X, LogIn } from 'lucide-react';
+import { Clock, X } from 'lucide-react'; // Removed LogIn import
 import { useNovelStore } from '../store/novelStore';
 import { useThemeStore } from './ThemeSwitcher';
-import { useAuthStore } from '../store/authStore';
+// Removed useAuthStore import
 import ThemeSwitcher from './ThemeSwitcher';
-import AuthModal from './AuthModal';
+// Removed AuthModal import
 
 interface StyleSelectionScreenProps {
   styles: NovelStyle[];
-  onSelectStyle: (style: NovelStyle) => void;
+  onSelectStyle: (style: NovelStyle) => void; // Keep onSelectStyle, but it won't call AuthModal
   isLoading: boolean;
   error: string | null;
 }
 
-const StyleSelectionScreen: React.FC<StyleSelectionScreenProps> = ({ 
-  styles, 
+const StyleSelectionScreen: React.FC<StyleSelectionScreenProps> = ({
+  styles,
   onSelectStyle,
   isLoading,
   error
 }) => {
   const histories = useNovelStore((state) => state.histories);
   const theme = useThemeStore((state) => state.theme);
-  const { user } = useAuthStore();
-  const [showAuthModal, setShowAuthModal] = React.useState(false);
+  // Removed user from useAuthStore
+  // Removed showAuthModal state
+
+  // Simplified onSelectStyle call in history mapping (line 80) - no need to check user
+  const handleHistorySelect = (style: NovelStyle) => {
+      onSelectStyle(style); // Directly call onSelectStyle
+  };
+
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
       <div className="text-center mb-12 relative">
         <div className="absolute right-0 top-0 flex items-center gap-4">
-          {user ? (
-            <Dialog.Root>
-              <Dialog.Trigger asChild>
-                <button
-                  className={`p-2 ${
-                    theme === 'dark' 
-                      ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                  } rounded-full transition-colors flex items-center gap-2`}
-                  aria-label="阅读历史"
-                >
-                  <Clock className="w-5 h-5" />
-                  <span>历史记录</span>
-                </button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-                <Dialog.Content className={`fixed right-0 top-0 h-full w-full max-w-md ${
-                  theme === 'dark' ? 'bg-gray-900' : 'bg-white'
-                } p-6 shadow-xl animate-slide-in-right`}>
-                  <div className="flex items-center justify-between mb-6">
-                    <Dialog.Title className={`text-xl font-semibold ${
-                      theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
-                    }`}>阅读历史</Dialog.Title>
-                    <Dialog.Close asChild>
-                      <button className={`p-2 ${
-                        theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
-                      } rounded-full`} aria-label="关闭">
-                        <X className={`w-5 h-5 ${
-                          theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
-                        }`} />
+          {/* History Dialog - Always visible now */}
+          <Dialog.Root>
+            <Dialog.Trigger asChild>
+              <button
+                className={`p-2 ${
+                  theme === 'dark'
+                    ? 'bg-gray-800 hover:bg-gray-700 text-gray-200'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                } rounded-full transition-colors flex items-center gap-2`}
+                aria-label="阅读历史"
+              >
+                <Clock className="w-5 h-5" />
+                <span>历史记录</span>
+              </button>
+            </Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+              <Dialog.Content className={`fixed right-0 top-0 h-full w-full max-w-md ${
+                theme === 'dark' ? 'bg-gray-900' : 'bg-white'
+              } p-6 shadow-xl animate-slide-in-right`}>
+                <div className="flex items-center justify-between mb-6">
+                  <Dialog.Title className={`text-xl font-semibold ${
+                    theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                  }`}>阅读历史</Dialog.Title>
+                  <Dialog.Close asChild>
+                    <button className={`p-2 ${
+                      theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                    } rounded-full`} aria-label="关闭">
+                      <X className={`w-5 h-5 ${
+                        theme === 'dark' ? 'text-gray-200' : 'text-gray-800'
+                      }`} />
+                    </button>
+                  </Dialog.Close>
+                </div>
+
+                <div className="space-y-4">
+                  {histories.length === 0 ? (
+                    <p className={`text-center py-8 ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                    }`}>暂无阅读历史</p>
+                  ) : (
+                    histories.map((history) => (
+                      <button
+                        key={history.id}
+                        // Use the simplified handler
+                        onClick={() => handleHistorySelect(history.style)}
+                        className={`w-full text-left p-4 ${
+                          theme === 'dark'
+                            ? 'bg-gray-800 hover:bg-gray-700 text-gray-200'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                        } rounded-lg transition-colors`}
+                      >
+                        <h3 className="font-medium mb-2">{history.style.name}</h3>
+                        <p className={`text-sm ${
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                        } line-clamp-2`}>{history.content}</p>
+                        <p className={`text-xs ${
+                          theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                        } mt-2`}>
+                          {new Date(history.lastUpdated).toLocaleString()}
+                        </p>
                       </button>
-                    </Dialog.Close>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {histories.length === 0 ? (
-                      <p className={`text-center py-8 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>暂无阅读历史</p>
-                    ) : (
-                      histories.map((history) => (
-                        <button
-                          key={history.id}
-                          onClick={() => {
-                            onSelectStyle(history.style);
-                          }}
-                          className={`w-full text-left p-4 ${
-                            theme === 'dark' 
-                              ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
-                              : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                          } rounded-lg transition-colors`}
-                        >
-                          <h3 className="font-medium mb-2">{history.style.name}</h3>
-                          <p className={`text-sm ${
-                            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                          } line-clamp-2`}>{history.content}</p>
-                          <p className={`text-xs ${
-                            theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
-                          } mt-2`}>
-                            {new Date(history.lastUpdated).toLocaleString()}
-                          </p>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </Dialog.Content>
-              </Dialog.Portal>
-            </Dialog.Root>
-          ) : (
-            <button
-              onClick={() => setShowAuthModal(true)}
-              className={`p-2 ${
-                theme === 'dark' 
-                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-              } rounded-full transition-colors flex items-center gap-2`}
-            >
-              <LogIn className="w-5 h-5" />
-              <span>登录/注册</span>
-            </button>
-          )}
+                    ))
+                  )}
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
+          {/* Removed conditional rendering for login button */}
           <ThemeSwitcher />
         </div>
 
@@ -140,19 +133,16 @@ const StyleSelectionScreen: React.FC<StyleSelectionScreenProps> = ({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
           {styles.map((style) => (
-            <StyleCard 
-              key={style.id} 
-              style={style} 
-              onSelect={() => onSelectStyle(style)}
+            <StyleCard
+              key={style.id}
+              style={style}
+              onSelect={() => onSelectStyle(style)} // Direct call, no auth check needed
             />
           ))}
         </div>
       )}
 
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-      />
+      {/* Removed AuthModal rendering */}
     </div>
   );
 };
