@@ -1,6 +1,9 @@
 # 执笔马良 - AI 交互式小说生成器
 
 一个基于 AI 的交互式小说生成器，允许用户选择不同的风格，然后通过选择剧情分支来决定故事的走向。
+![image](https://github.com/user-attachments/assets/b05b0078-a4a2-4a24-acea-9fa4dcbb4fac)
+![image](https://github.com/user-attachments/assets/fc6f9e96-944d-40c6-9745-f49f779d6977)
+![image](https://github.com/user-attachments/assets/f744a09e-a7ae-4b81-8ee3-f53e1fef7e50)
 
 ## 项目特点
 
