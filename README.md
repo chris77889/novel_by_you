@@ -35,7 +35,7 @@
 ## 技术栈
 
 - 前端：React, TailwindCSS, Zustand
-- AI：可配置的 AI 服务 (例如 Gemini, OpenAI, Groq 等)
+- AI：可配置的 AI 服务 (只支持OpenAI格式)
 
 ## 安装与运行
 
@@ -68,6 +68,10 @@
         *   `VITE_AI_PRECISE_MODEL_NAME` / `ENDPOINT`: "Precise" 风格使用的 AI 模型名称和 API 端点。
         *   `VITE_AI_BALANCED_MODEL_NAME` / `ENDPOINT`: "Balanced" 风格使用的 AI 模型名称和 API 端点。
         *   `VITE_STRUCTURE_THINKING_THRESHOLD` (可选): 控制触发结构思考的阈值，默认为 5。
+
+注意，ai接口需要完整填写到compations！！！
+
+需要增加模式的话，直接修改data里面的代码！
 
 4.  **运行开发服务器**
     ```bash
