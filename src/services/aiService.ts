@@ -18,8 +18,8 @@ interface ModelConfig {
 
 const models: Record<string, ModelConfig> = {
   creative: {
-    name: import.meta.env.VITE_AI_CREATIVE_MODEL_NAME || 'gemini-2.5-flash-preview-04-17',
-    endpoint: import.meta.env.VITE_AI_CREATIVE_MODEL_ENDPOINT || 'https://api.tqmylove.space/v1/chat/completions',
+    name: import.meta.env.VITE_AI_CREATIVE_MODEL_NAME,
+    endpoint: import.meta.env.VITE_AI_CREATIVE_MODEL_ENDPOINT ,
     temperature: 0.8,
     maxTokens: 2000,
     topP: 0.9,
@@ -32,8 +32,8 @@ const models: Record<string, ModelConfig> = {
     }
   },
   precise: {
-    name: import.meta.env.VITE_AI_PRECISE_MODEL_NAME || 'gemini-2.5-flash-preview-04-17',
-    endpoint: import.meta.env.VITE_AI_PRECISE_MODEL_ENDPOINT || 'https://api.tqmylove.space/v1/chat/completions',
+    name: import.meta.env.VITE_AI_PRECISE_MODEL_NAME,
+    endpoint: import.meta.env.VITE_AI_PRECISE_MODEL_ENDPOINT ,
     temperature: 0.3,
     maxTokens: 2000,
     topP: 0.8,
@@ -46,8 +46,8 @@ const models: Record<string, ModelConfig> = {
     }
   },
   balanced: {
-    name: import.meta.env.VITE_AI_BALANCED_MODEL_NAME || 'gemini-2.5-flash-preview-04-17',
-    endpoint: import.meta.env.VITE_AI_BALANCED_MODEL_ENDPOINT || 'https://api.tqmylove.space/v1/chat/completions',
+    name: import.meta.env.VITE_AI_BALANCED_MODEL_NAME,
+    endpoint: import.meta.env.VITE_AI_BALANCED_MODEL_ENDPOINT ,
     temperature: 0.5,
     maxTokens: 2000,
     topP: 0.85,
@@ -136,47 +136,67 @@ export const generateInitialStructure = async (
 `;
 
     return await retryWithBackoff(async () => {
+      // --- Start Logging ---
+      const requestBody = {
+        model: modelConfig.name,
+        messages: [
+          {
+            role: 'system',
+            content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。'
+          },
+          { role: 'user', content: basePrompt }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: 500,
+        response_format: { type: "json_object" }
+      };
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY ? '***MASKED***' : 'MISSING'}` // Mask API Key
+      };
+      console.log(`[${new Date().toISOString()}] AI Request (generateInitialStructure):`);
+      console.log(`  URL: ${modelConfig.endpoint}`);
+      console.log(`  Method: POST`);
+      console.log(`  Headers: ${JSON.stringify(requestHeaders)}`);
+      console.log(`  Body: ${JSON.stringify(requestBody)}`);
+      // --- End Logging ---
+
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
-        headers: {
+        headers: { // Use original headers for the actual request
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${API_KEY}`
         },
-        body: JSON.stringify({
-          model: modelConfig.name,
-          messages: [
-            { 
-              role: 'system', 
-              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。'
-            },
-            { role: 'user', content: basePrompt }
-          ],
-          temperature: modelConfig.temperature, 
-          max_tokens: 500,
-          response_format: { type: "json_object" }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
+        // Log error response body if possible
+        try {
+          const errorBody = await response.text();
+          console.error(`[${new Date().toISOString()}] AI Request Failed (generateInitialStructure). Status: ${response.status}. Body: ${errorBody}`);
+        } catch (e) {
+          console.error(`[${new Date().toISOString()}] AI Request Failed (generateInitialStructure). Status: ${response.status}. Could not read error body:`, e); // Fix: Use 'e'
+        }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
       console.log('Raw AI Response Data (Initial Structure):', data);
-      
+
       if (!data.choices?.[0]?.message?.content) {
         console.error('Raw AI Response Data (Initial Structure) missing content:', data);
         throw new Error('AI response structure unexpected or content missing');
       }
-      
+
       console.log('AI Output Content (Initial Structure):', data.choices[0].message.content);
-      
+
       const result = safeJsonParse(data.choices[0].message.content);
-      
+
       if (!result.outline) {
         throw new Error('AI response missing outline field');
       }
-      
+
       return result.outline.trim();
     });
   } catch (error) {
@@ -192,28 +212,38 @@ const retryWithBackoff = async <T>(
   baseDelay: number = 1000
 ): Promise<T> => {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      // Log attempt number
+      console.log(`[${new Date().toISOString()}] Retry Attempt ${attempt + 1}/${maxRetries}...`);
       return await operation();
     } catch (error: unknown) {
       lastError = error as Error;
-      
-      // Only retry on 503 errors
-      if (!error?.toString().includes('API error: 503')) {
-        throw error;
+      console.error(`[${new Date().toISOString()}] Retry Attempt ${attempt + 1} failed:`, lastError);
+
+      // Only retry on 503 errors or potentially other transient server errors (e.g., 500, 502, 504)
+      const statusCodeMatch = lastError.message.match(/API error: (5\d{2})/);
+      const shouldRetry = statusCodeMatch && ['500', '502', '503', '504'].includes(statusCodeMatch[1]);
+
+      if (!shouldRetry) {
+         console.log(`[${new Date().toISOString()}] Error is not retryable (${lastError.message}). Throwing.`);
+        throw lastError;
       }
-      
+
       if (attempt === maxRetries - 1) {
-        throw error;
+         console.log(`[${new Date().toISOString()}] Max retries reached. Throwing last error.`);
+        throw lastError;
       }
-      
+
       const delay = baseDelay * Math.pow(2, attempt);
+      console.log(`[${new Date().toISOString()}] Retrying after ${delay}ms delay...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
-  throw lastError;
+
+  // This should theoretically not be reached due to the throw in the loop, but needed for TS
+  throw lastError || new Error("Retry mechanism failed unexpectedly");
 };
 
 export const generateInitialStoryAndChoices = async (
@@ -259,35 +289,55 @@ export const generateInitialStoryAndChoices = async (
       3.  **完整性**：确保 JSON 对象完整，无截断、无语法错误（如多余逗号）。     
       4.   **无额外包装（关键点）**：最终的输出必须是纯粹的、原始的 JSON 字符串本身，绝对不能包含 Markdown 的代码块标记或其他任何解释性文本。响应应直接以 { 开始，并以 } 结束。
 `;
-    
+
     const prompt = generateThinkingSteps(basePrompt, modelConfig.thinking);
 
     return await retryWithBackoff(async () => {
+       // --- Start Logging ---
+       const requestBody = {
+        model: modelConfig.name,
+        messages: [
+          {
+            role: 'system',
+            content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.maxTokens,
+        top_p: modelConfig.topP,
+        frequency_penalty: modelConfig.frequencyPenalty,
+        presence_penalty: modelConfig.presencePenalty,
+        response_format: { type: "json_object" }
+      };
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY ? '***MASKED***' : 'MISSING'}` // Mask API Key
+      };
+      console.log(`[${new Date().toISOString()}] AI Request (generateInitialStoryAndChoices):`);
+      console.log(`  URL: ${modelConfig.endpoint}`);
+      console.log(`  Method: POST`);
+      console.log(`  Headers: ${JSON.stringify(requestHeaders)}`);
+      console.log(`  Body: ${JSON.stringify(requestBody)}`);
+      // --- End Logging ---
+
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
-        headers: {
+        headers: { // Use original headers for the actual request
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${API_KEY}`
         },
-        body: JSON.stringify({
-          model: modelConfig.name,
-          messages: [
-            { 
-              role: 'system', 
-              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。'
-            },
-            { role: 'user', content: prompt }
-          ],
-          temperature: modelConfig.temperature,
-          max_tokens: modelConfig.maxTokens,
-          top_p: modelConfig.topP,
-          frequency_penalty: modelConfig.frequencyPenalty,
-          presence_penalty: modelConfig.presencePenalty,
-          response_format: { type: "json_object" }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
+         // Log error response body if possible
+        try {
+          const errorBody = await response.text();
+          console.error(`[${new Date().toISOString()}] AI Request Failed (generateInitialStoryAndChoices). Status: ${response.status}. Body: ${errorBody}`);
+        } catch (e) {
+          console.error(`[${new Date().toISOString()}] AI Request Failed (generateInitialStoryAndChoices). Status: ${response.status}. Could not read error body:`, e); // Fix: Use 'e'
+        }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
@@ -300,7 +350,7 @@ export const generateInitialStoryAndChoices = async (
       console.log('AI Output Content (Initial Story):', data.choices[0].message.content);
 
       const result = safeJsonParse(data.choices[0].message.content) as StoryResponse;
-      
+
       if (!result.story || !Array.isArray(result.choices) || result.choices.length !== 3) {
         throw new Error('AI response missing required fields or has incorrect format');
       }
@@ -325,7 +375,7 @@ export const continueStoryAndGenerateChoices = async (
     const modelConfig = models[modelType] || defaultModel;
     const thresholdN = 5; // 固定每5次选择进行一次思考
     const needStructureThinking = choiceCount > 0 && choiceCount % thresholdN === 0;
-    
+
     let basePrompt = `
 **！！！绝对强制输出格式！！！**
 你的唯一输出**必须**是单个、完整且语法绝对正确的 JSON 对象。**禁止**在 JSON 对象之外添加任何字符、解释、注释、代码标记（如 \`\`\`json）或任何形式的元评论。任何偏离此格式的输出都将被视为完全失败。
@@ -416,36 +466,56 @@ ${currentStructureOutline}\n\n`;
 2. **用户偏好分析**：基于用户之前的${choiceCount}次选择，推断用户的偏好和兴趣点。考虑用户是更偏向冒险、对话、情感描写还是其他方面，并思考如何在后续选项和内容中融入这些偏好。
 `;
     }
-    
+
     const systemPrompt = generateThinkingSteps(basePrompt, modelConfig.thinking);
-    
+
     return await retryWithBackoff(async () => {
+      // --- Start Logging ---
+      const requestBody = {
+        model: modelConfig.name,
+        messages: [
+          {
+            role: 'system',
+            content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。请注意生成的内容不要有```json这种表示markdown的格式表示, 直接返回对象即可.'
+          },
+          ...history,
+          { role: 'user', content: systemPrompt }
+        ],
+        temperature: modelConfig.temperature,
+        max_tokens: modelConfig.maxTokens,
+        top_p: modelConfig.topP,
+        frequency_penalty: modelConfig.frequencyPenalty,
+        presence_penalty: modelConfig.presencePenalty,
+        response_format: { type: "json_object" }
+      };
+      const requestHeaders = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_KEY ? '***MASKED***' : 'MISSING'}` // Mask API Key
+      };
+      console.log(`[${new Date().toISOString()}] AI Request (continueStoryAndGenerateChoices):`);
+      console.log(`  URL: ${modelConfig.endpoint}`);
+      console.log(`  Method: POST`);
+      console.log(`  Headers: ${JSON.stringify(requestHeaders)}`);
+      console.log(`  Body: ${JSON.stringify(requestBody)}`);
+      // --- End Logging ---
+
       const response = await fetch(modelConfig.endpoint, {
         method: 'POST',
-        headers: {
+        headers: { // Use original headers for the actual request
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${API_KEY}`
         },
-        body: JSON.stringify({
-          model: modelConfig.name,
-          messages: [
-            { 
-              role: 'system', 
-              content: '你的唯一输出必须是单个、完整且语法绝对正确的 JSON 对象。禁止在 JSON 对象之外添加任何其他内容。请注意生成的内容不要有```json这种表示markdown的格式表示, 直接返回对象即可.'
-            },
-            ...history,
-            { role: 'user', content: systemPrompt }
-          ],
-          temperature: modelConfig.temperature,
-          max_tokens: modelConfig.maxTokens,
-          top_p: modelConfig.topP,
-          frequency_penalty: modelConfig.frequencyPenalty,
-          presence_penalty: modelConfig.presencePenalty,
-          response_format: { type: "json_object" }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
+         // Log error response body if possible
+        try {
+          const errorBody = await response.text();
+          console.error(`[${new Date().toISOString()}] AI Request Failed (continueStoryAndGenerateChoices). Status: ${response.status}. Body: ${errorBody}`);
+        } catch (e) {
+          console.error(`[${new Date().toISOString()}] AI Request Failed (continueStoryAndGenerateChoices). Status: ${response.status}. Could not read error body:`, e); // Fix: Use 'e'
+        }
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
@@ -458,7 +528,7 @@ ${currentStructureOutline}\n\n`;
       console.log('AI Output Content (Continuation):', data.choices[0].message.content);
 
       const result = safeJsonParse(data.choices[0].message.content);
-      
+
       if (!result.storyContinuation || !Array.isArray(result.choices) || result.choices.length !== 3) {
         throw new Error('AI response missing required fields or has incorrect format');
       }
@@ -478,22 +548,24 @@ ${currentStructureOutline}\n\n`;
 
 export const handleAiError = (error: Error, defaultMessage: string = 'AI服务暂时不可用，请稍后再试'): string => {
   console.error('AI Service Error:', error);
-  
+
   if (error.message.includes('API error: 429')) {
     return '请求次数过多，请稍后再试';
   } else if (error.message.includes('API error: 503')) {
     return 'AI服务暂时不可用，系统正在尝试重新连接，请稍候...';
-  } else if (error.message.includes('API error: 5')) {
+  } else if (error.message.includes('API error: 5')) { // Catch 5xx errors
     return 'AI服务器暂时不可用，请稍后再试';
   } else if (error.message.includes('Invalid JSON response')) {
     return 'AI返回的格式有误，请重试';
-  } else if (error.message.includes('解析错误:')) {
+  } else if (error.message.includes('解析错误:')) { // Assuming this is a custom error message prefix
     return `${error.message}，请重试`;
   } else if (error.message.includes('API error: 403')) {
     return 'AI服务授权失败，请检查API密钥是否正确';
+  } else if (error.message.includes('API error: 400')) { // Add specific message for 400
+    return '请求参数错误，请检查输入或联系开发者';
   } else if (error.message.includes('missing required fields')) {
     return 'AI返回的内容格式不完整，请重试';
   }
-  
+
   return defaultMessage;
 };
