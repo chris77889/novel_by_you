@@ -74,7 +74,7 @@
         *   `VITE_AI_BALANCED_MODEL_NAME` / `ENDPOINT`: "Balanced" 风格使用的 AI 模型名称和 API 端点。
         *   `VITE_STRUCTURE_THINKING_THRESHOLD` (可选): 控制触发结构思考的阈值，默认为 5。
 
-注意，ai接口需要完整填写到compations！！！
+注意，ai接口需要完整填写到completions！！！
 
 需要增加模式的话，直接修改data里面的代码！
 
