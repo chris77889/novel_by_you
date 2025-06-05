@@ -373,7 +373,8 @@ export const continueStoryAndGenerateChoices = async (
 ): Promise<EnhancedContinuationResponse> => {
   try {
     const modelConfig = models[modelType] || defaultModel;
-    const thresholdN = 5; // 固定每5次选择进行一次思考
+    // 从环境变量读取结构思考的阈值，如未设置则默认为 5
+    const thresholdN = Number(import.meta.env.VITE_STRUCTURE_THINKING_THRESHOLD) || 5;
     const needStructureThinking = choiceCount > 0 && choiceCount % thresholdN === 0;
 
     let basePrompt = `
