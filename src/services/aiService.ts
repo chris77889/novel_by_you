@@ -87,8 +87,31 @@ interface StoryResponse {
 }
 
 const safeJsonParse = (text: string) => {
+  let cleaned = text.trim();
+
+  // Remove Markdown code fences like ```json ... ```
+  cleaned = cleaned
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  // Normalize curly quotes that occasionally appear in AI output
+  cleaned = cleaned.replace(/[“”]/g, '"');
+
+  // Extract the first JSON object if extra text surrounds it
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    const jsonSubstring = cleaned.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(jsonSubstring);
+    } catch (_) {
+      // fall through to try full cleaned string below
+    }
+  }
+
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch (error) {
     console.error('JSON Parse Error:', error);
     console.error('Raw Response:', text);
