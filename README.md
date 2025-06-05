@@ -69,14 +69,14 @@
         ```
     *   编辑 `.env.local` 文件，填入**所有必需的** AI 服务配置信息。请参考文件内的注释说明：
         *   `VITE_AI_API_KEY`: 你的 AI 服务 API 密钥。
-        *   `VITE_AI_CREATIVE_MODEL_NAME` / `ENDPOINT`: "Creative" 风格使用的 AI 模型名称和 API 端点。
-        *   `VITE_AI_PRECISE_MODEL_NAME` / `ENDPOINT`: "Precise" 风格使用的 AI 模型名称和 API 端点。
-        *   `VITE_AI_BALANCED_MODEL_NAME` / `ENDPOINT`: "Balanced" 风格使用的 AI 模型名称和 API 端点。
+        *   `VITE_AI_CREATIVE_MODEL_NAME` / `VITE_AI_CREATIVE_MODEL_ENDPOINT`: "Creative" 模式使用的模型名称及完整接口地址。
+        *   `VITE_AI_PRECISE_MODEL_NAME` / `VITE_AI_PRECISE_MODEL_ENDPOINT`: "Precise" 模式使用的模型名称及完整接口地址。
+        *   `VITE_AI_BALANCED_MODEL_NAME` / `VITE_AI_BALANCED_MODEL_ENDPOINT`: "Balanced" 模式使用的模型名称及完整接口地址。
         *   `VITE_STRUCTURE_THINKING_THRESHOLD` (可选): 控制触发结构思考的阈值，默认为 5。
 
-注意，ai接口需要完整填写到completions！！！
+    `*_ENDPOINT` 字段必须包含完整的 `chat/completions` 路径（例如 `https://api.openai.com/v1/chat/completions`）。
 
-需要增加模式的话，直接修改data里面的代码！
+如需增加更多风格，可在 `src/data/novelStyles.ts` 中新增定义。
 
 4.  **运行开发服务器**
     ```bash
