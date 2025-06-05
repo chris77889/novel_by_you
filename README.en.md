@@ -61,10 +61,14 @@ An AI-based interactive novel generator that allows users to choose different st
         ```
     *   Edit the `.env.local` file and fill in **all required** AI service configuration details. Refer to the comments within the file for guidance:
         *   `VITE_AI_API_KEY`: Your AI service API key.
-        *   `VITE_AI_CREATIVE_MODEL_NAME` / `ENDPOINT`: AI model name and API endpoint for the "Creative" style.
-        *   `VITE_AI_PRECISE_MODEL_NAME` / `ENDPOINT`: AI model name and API endpoint for the "Precise" style.
-        *   `VITE_AI_BALANCED_MODEL_NAME` / `ENDPOINT`: AI model name and API endpoint for the "Balanced" style.
+        *   `VITE_AI_CREATIVE_MODEL_NAME` / `VITE_AI_CREATIVE_MODEL_ENDPOINT`: Model name and full endpoint for the "Creative" mode.
+        *   `VITE_AI_PRECISE_MODEL_NAME` / `VITE_AI_PRECISE_MODEL_ENDPOINT`: Model name and full endpoint for the "Precise" mode.
+        *   `VITE_AI_BALANCED_MODEL_NAME` / `VITE_AI_BALANCED_MODEL_ENDPOINT`: Model name and full endpoint for the "Balanced" mode.
         *   `VITE_STRUCTURE_THINKING_THRESHOLD` (Optional): Threshold for triggering structure thinking, defaults to 5.
+
+    The `*_ENDPOINT` value must include the complete `chat/completions` path (e.g. `https://api.openai.com/v1/chat/completions`).
+
+    To add more styles, edit `src/data/novelStyles.ts`.
 
 4.  **Run the Development Server**
     ```bash
